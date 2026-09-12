@@ -17,7 +17,7 @@ from telebot import types
 
 # --- НАСТРОЙКИ БОТА ---
 TOKEN = '8668630984:AAEQgKGPaJbrX-cgkLH62_MlLPdjaseDwtA'
-ADMIN_ID = 7088071281  # Твой Telegram ID вставлен сюда!
+ADMIN_ID = 7088071281  # Твой Telegram ID
 
 # Реквизиты для оплаты
 PAYMENT_REQUISITES = (
@@ -27,16 +27,17 @@ PAYMENT_REQUISITES = (
     "• <b>Получатель:</b> (проверьте перед переводом)\n\n"
 )
 
+# Новый VLESS-ключ (gRPC + REALITY)
 STATIC_SERVER_KEY = (
-    "vless://342f746b-26f3-4093-b87e-bfdb6a38def2@178.248.236.7:50443"
-    "?security=reality&encryption=none&pbk=r-_zNu0BrD8PgGzg-KQSes06Si83txHWYPH-o8xXihk"
-    "&fp=qq&type=tcp&flow=xtls-rprx-vision&sni=rutube.ru&sid=a66ffc56b634bd44#Desentom%20VPN"
+    "vless://a94610b9-b27a-49c8-9085-b4cc37c9abb1@kkooa.vz-or.com:443"
+    "?security=reality&encryption=none&pbk=RJETAkoZ6lowmwc5f0HtPy00c3dfojqQuypriLExXRE"
+    "&fp=qq&type=grpc&serviceName=ads.x5.ru&sni=ads.x5.ru&sid=abbcd128#Desentom%20VPN"
 )
 SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/#Desentom%20VPN'
 
 bot = telebot.TeleBot(TOKEN)
 
-# Словарь для ожидания чека (кто нажал кнопку оплаты, попадает сюда)
+# Словарь для ожидания чека
 pending_payments = {}
 
 # --- БАЗА ДАННЫХ ---
@@ -170,7 +171,6 @@ def callback_inline(call):
     username = call.from_user.username or call.from_user.first_name
 
     if call.data == "main_menu":
-        # Если юзер отменил покупку, удаляем его из ожидания чека
         if user_id in pending_payments:
             del pending_payments[user_id]
             
@@ -189,7 +189,6 @@ def callback_inline(call):
         prices = {"1m": "100 ₽", "3m": "270 ₽", "6m": "500 ₽", "12m": "900 ₽"}
         price = prices.get(period_name, "100 ₽")
 
-        # Переводим пользователя в режим ожидания чека
         pending_payments[user_id] = {'days': days, 'price': price}
 
         text = (
@@ -216,7 +215,6 @@ def callback_inline(call):
 
         bot.answer_callback_query(call.id, "Подписка успешно выдана!")
         
-        # Обновляем сообщение админа (чтобы кнопки пропали)
         bot.edit_message_caption(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
@@ -224,7 +222,6 @@ def callback_inline(call):
             parse_mode='HTML'
         )
 
-        # Отправляем ключ клиенту
         safe_key = html.escape(STATIC_SERVER_KEY)
         safe_sub = html.escape(SUB_URL)
         user_text = (
@@ -322,7 +319,6 @@ def callback_inline(call):
 def handle_receipts_and_text(message):
     user_id = message.from_user.id
     
-    # Проверяем, ждет ли бот от этого юзера скриншот
     if user_id in pending_payments:
         if message.content_type in ['photo', 'document']:
             payment_info = pending_payments[user_id]
@@ -330,10 +326,8 @@ def handle_receipts_and_text(message):
             price = payment_info['price']
             username = message.from_user.username or message.from_user.first_name
 
-            # Достаем ID картинки (или файла, если отправили как документ)
             file_id = message.photo[-1].file_id if message.content_type == 'photo' else message.document.file_id
 
-            # Клавиатура для тебя (админа)
             admin_markup = types.InlineKeyboardMarkup(row_width=2)
             btn_confirm = types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_approve_{user_id}_{days}")
             btn_reject = types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_reject_{user_id}")
@@ -346,7 +340,6 @@ def handle_receipts_and_text(message):
                 f"💵 <b>Сумма к проверке:</b> {price}"
             )
             
-            # Отправляем скриншот админу
             try:
                 bot.send_photo(ADMIN_ID, file_id, caption=caption, parse_mode='HTML', reply_markup=admin_markup)
                 bot.send_message(user_id, "✅ <b>Чек отправлен на проверку администратору!</b>\nОжидайте подтверждения, бот пришлет доступ автоматически.", parse_mode='HTML')
@@ -354,16 +347,14 @@ def handle_receipts_and_text(message):
                 bot.send_message(user_id, "⚠️ Ошибка отправки чека администратору. Попробуйте еще раз позже.", parse_mode='HTML')
                 print(f"Ошибка: {e}")
 
-            # Удаляем юзера из режима ожидания оплаты
             del pending_payments[user_id]
             
         else:
             bot.send_message(user_id, "⚠️ <b>Пожалуйста, отправьте скриншот чека в виде картинки (фотографии)!</b>\n\nЕсли хотите отменить, нажмите /start", parse_mode='HTML')
     else:
-        # Если юзер просто пишет текст и не в процессе оплаты
         if message.text and not message.text.startswith('/'):
             bot.send_message(user_id, "Воспользуйтесь меню: /start")
 
 if __name__ == '__main__':
-    print("Бот с базой данных и проверкой чеков запущен!")
+    print("Бот запущен с новым gRPC сервером!")
     bot.polling(none_stop=True)
