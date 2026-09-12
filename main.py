@@ -1,3 +1,4 @@
+import os
 import socket
 import threading
 import sqlite3
@@ -19,6 +20,10 @@ from telebot import types
 TOKEN = '8668630984:AAEQgKGPaJbrX-cgkLH62_MlLPdjaseDwtA'
 ADMIN_ID = 7088071281  # Твой Telegram ID
 
+# Путь к БД с защитой от удаления при пересборке хостинга
+DB_DIR = '/data' if os.path.exists('/data') else '.'
+DB_PATH = os.path.join(DB_DIR, 'users.db')
+
 # Реквизиты для оплаты
 PAYMENT_REQUISITES = (
     "💳 <b>Реквизиты для оплаты:</b>\n\n"
@@ -27,22 +32,20 @@ PAYMENT_REQUISITES = (
     "• <b>Получатель:</b> (проверьте перед переводом)\n\n"
 )
 
-# Новый VLESS-ключ (gRPC + REALITY)
+# Новая VLESS-ссылка (TCP + REALITY + Vision)
 STATIC_SERVER_KEY = (
     "vless://a94610b9-b27a-49c8-9085-b4cc37c9abb1@kkooa.vz-or.com:443"
     "?security=reality&encryption=none&pbk=RJETAkoZ6lowmwc5f0HtPy00c3dfojqQuypriLExXRE"
-    "&fp=qq&type=grpc&serviceName=ads.x5.ru&sni=ads.x5.ru&sid=abbcd128#Desentom%20VPN"
+    "&fp=qq&type=tcp&flow=xtls-rprx-vision&sni=ads.x5.ru&sid=abbcd128#Desentom%20VPN"
 )
 SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/#Desentom%20VPN'
 
 bot = telebot.TeleBot(TOKEN)
-
-# Словарь для ожидания чека
 pending_payments = {}
 
 # --- БАЗА ДАННЫХ ---
 def init_db():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -57,7 +60,7 @@ def init_db():
 init_db()
 
 def get_user_sub(user_id):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('SELECT sub_expires FROM users WHERE user_id = ?', (user_id,))
     res = cursor.fetchone()
@@ -69,7 +72,7 @@ def get_user_sub(user_id):
     return None
 
 def add_user_sub(user_id, username, days):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     current_sub = get_user_sub(user_id)
@@ -151,6 +154,19 @@ def update_menu(call, text, reply_markup):
     except Exception as e:
         print(f"Ошибка обновления меню: {e}")
 
+# --- АДМИН КОМАНДЫ ДЛЯ СИНХРОНИЗАЦИИ И БЭКАПА ---
+@bot.message_handler(commands=['backup'])
+def send_backup(message):
+    if message.from_user.id == ADMIN_ID:
+        try:
+            if os.path.exists(DB_PATH):
+                with open(DB_PATH, 'rb') as db_file:
+                    bot.send_document(ADMIN_ID, db_file, caption="💾 <b>Резервная копия подписок (users.db)</b>", parse_mode='HTML')
+            else:
+                bot.send_message(ADMIN_ID, "⚠️ Файл базы данных не найден.")
+        except Exception as e:
+            bot.send_message(ADMIN_ID, f"❌ Ошибка выгрузки БД: {e}")
+
 # --- ОБРАБОТКА КОМАНД ---
 @bot.message_handler(commands=['start', 'menu'])
 def send_welcome(message):
@@ -168,7 +184,6 @@ def send_welcome(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     user_id = call.from_user.id
-    username = call.from_user.username or call.from_user.first_name
 
     if call.data == "main_menu":
         if user_id in pending_payments:
@@ -204,13 +219,13 @@ def callback_inline(call):
         
         update_menu(call, text, markup)
 
-    # --- АДМИН-КНОПКИ (ПОД ЧЕКОМ) ---
+    # --- АДМИН-КНОПКИ ---
     elif call.data.startswith("adm_approve_"):
         parts = call.data.split("_")
         target_id = int(parts[2])
         days = int(parts[3])
 
-        expire_date = add_user_sub(target_id, call.from_user.username, days)
+        expire_date = add_user_sub(target_id, call.from_user.username or "Пользователь", days)
         expire_str = expire_date.strftime("%d.%m.%Y %H:%M")
 
         bot.answer_callback_query(call.id, "Подписка успешно выдана!")
@@ -237,6 +252,13 @@ def callback_inline(call):
             bot.send_message(target_id, user_text, parse_mode='HTML')
         except Exception as e:
             print(f"Ошибка отправки пользователю: {e}")
+
+        # Автоматический авто-бэкап базы админу в ЛС при каждой выдаче подписки
+        try:
+            with open(DB_PATH, 'rb') as db_file:
+                bot.send_document(ADMIN_ID, db_file, caption=f"💾 <b>Авто-бэкап базы данных</b>\nВыдана подписка ID: <code>{target_id}</code> до {expire_str}", parse_mode='HTML')
+        except Exception as e:
+            print(f"Ошибка сохранения авто-бэкапа: {e}")
 
     elif call.data.startswith("adm_reject_"):
         target_id = int(call.data.split("_")[2])
@@ -314,11 +336,26 @@ def callback_inline(call):
 
     bot.answer_callback_query(call.id)
 
-# --- ОБРАБОТЧИК ФОТОГРАФИЙ (ЧЕКОВ) ---
+# --- ОБРАБОТЧИК ФОТОГРАФИЙ И ФАЙЛОВ ---
 @bot.message_handler(content_types=['text', 'photo', 'document'])
-def handle_receipts_and_text(message):
+def handle_files_and_text(message):
     user_id = message.from_user.id
     
+    # Восстановление базы админом (если скинуть файл users.db)
+    if user_id == ADMIN_ID and message.content_type == 'document' and message.document.file_name == 'users.db':
+        try:
+            file_info = bot.get_file(message.document.file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            with open(DB_PATH, 'wb') as new_db:
+                new_db.write(downloaded_file)
+            
+            bot.send_message(ADMIN_ID, "✅ <b>База данных подписок успешно восстановлена!</b>", parse_mode='HTML')
+            return
+        except Exception as e:
+            bot.send_message(ADMIN_ID, f"❌ Ошибка при восстановлении БД: {e}")
+            return
+
     if user_id in pending_payments:
         if message.content_type in ['photo', 'document']:
             payment_info = pending_payments[user_id]
@@ -356,5 +393,5 @@ def handle_receipts_and_text(message):
             bot.send_message(user_id, "Воспользуйтесь меню: /start")
 
 if __name__ == '__main__':
-    print("Бот запущен с новым gRPC сервером!")
+    print("Бот запущен с системой синхронизации подписок!")
     bot.polling(none_stop=True)
