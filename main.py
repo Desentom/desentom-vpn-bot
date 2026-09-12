@@ -34,8 +34,8 @@ STATIC_SERVER_KEY = (
     "&fp=qq&type=tcp&flow=xtls-rprx-vision&sni=rutube.ru&sid=a66ffc56b634bd44#Desentom%20VPN"
 )
 
-# Ссылка подписки Cloudflare Worker
-SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/'
+# Ссылка подписки Cloudflare Worker с именем для Happ
+SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/#Desentom%20VPN'
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
