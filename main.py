@@ -6,7 +6,7 @@ import html
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests.packages.urllib3.util.connection as urllib_conn
 
-# Фикс сети для Amvera
+# Фикс сети для Amvera/Termux
 def allowed_gai_family():
     return socket.AF_INET
 
@@ -17,14 +17,14 @@ from telebot import types
 
 # --- НАСТРОЙКИ БОТА ---
 TOKEN = '8668630984:AAEQgKGPaJbrX-cgkLH62_MlLPdjaseDwtA'
-ADMIN_ID = 123456789  # ⚠️ ЗАМЕНИ НА СВОЙ TELEGRAM ID (число)
+ADMIN_ID = 7088071281  # Твой Telegram ID вставлен сюда!
 
-# Реквизиты для оплаты (укажи свои данные)
+# Реквизиты для оплаты
 PAYMENT_REQUISITES = (
-    "💳 <b>Реквизиты для оплаты (СБП / Карта):</b>\n\n"
-    "• <b>Карта / СБП:</b> <code>+79000000000</code> (Т-Банк / Сбер)\n"
-    "• <b>Получатель:</b> Глеб В.\n\n"
-    "<i>После перевода нажмите кнопку «✅ Я оплатил» ниже.</i>"
+    "💳 <b>Реквизиты для оплаты:</b>\n\n"
+    "• <b>СБП (Номер телефона):</b> <code>+79956913031</code>\n"
+    "• <b>Банк:</b> <b>\"ОЗОН\" Банк</b>\n"
+    "• <b>Получатель:</b> (проверьте перед переводом)\n\n"
 )
 
 STATIC_SERVER_KEY = (
@@ -35,6 +35,9 @@ STATIC_SERVER_KEY = (
 SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/#Desentom%20VPN'
 
 bot = telebot.TeleBot(TOKEN)
+
+# Словарь для ожидания чека (кто нажал кнопку оплаты, попадает сюда)
+pending_payments = {}
 
 # --- БАЗА ДАННЫХ ---
 def init_db():
@@ -87,7 +90,7 @@ def add_user_sub(user_id, username, days):
     conn.close()
     return new_expire
 
-# --- ВЕБ-СЕРВЕР ДЛЯ AMVERA ---
+# --- ВЕБ-СЕРВЕР ДЛЯ ХОСТИНГА ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -167,6 +170,10 @@ def callback_inline(call):
     username = call.from_user.username or call.from_user.first_name
 
     if call.data == "main_menu":
+        # Если юзер отменил покупку, удаляем его из ожидания чека
+        if user_id in pending_payments:
+            del pending_payments[user_id]
+            
         text = "🚀 <b>Главное меню Desentom VPN</b>\n\n🗂 <b>Выберите действие:</b>"
         update_menu(call, text, get_main_menu())
 
@@ -175,7 +182,6 @@ def callback_inline(call):
         update_menu(call, text, get_periods_menu())
 
     elif call.data.startswith("select_"):
-        # Выбор тарифа
         parts = call.data.split("_")
         period_name = parts[1]
         days = int(parts[2])
@@ -183,70 +189,42 @@ def callback_inline(call):
         prices = {"1m": "100 ₽", "3m": "270 ₽", "6m": "500 ₽", "12m": "900 ₽"}
         price = prices.get(period_name, "100 ₽")
 
+        # Переводим пользователя в режим ожидания чека
+        pending_payments[user_id] = {'days': days, 'price': price}
+
         text = (
             f"🛒 <b>Оформление подписки на {days} дней ({price})</b>\n\n"
             f"{PAYMENT_REQUISITES}"
+            f"📸 <b>Пожалуйста, оплатите и отправьте скриншот чека прямо сюда (в этот чат).</b>\n\n"
+            f"<i>Бот ждёт вашу фотографию...</i> ⏳"
         )
         
         markup = types.InlineKeyboardMarkup(row_width=1)
-        btn_paid = types.InlineKeyboardButton("✅ Я оплатил(а)", callback_data=f"checkpay_{days}_{price}")
-        btn_back = types.InlineKeyboardButton("⬅️ Отмена", callback_data="buy_vpn")
-        markup.add(btn_paid, btn_back)
+        btn_cancel = types.InlineKeyboardButton("⬅️ Отменить покупку", callback_data="main_menu")
+        markup.add(btn_cancel)
         
         update_menu(call, text, markup)
 
-    elif call.data.startswith("checkpay_"):
-        parts = call.data.split("_")
-        days = parts[1]
-        price = parts[2]
-
-        text = (
-            "⏳ <b>Ваш платеж отправлен на проверку!</b>\n\n"
-            "Администратор проверяет поступление средств. Обычно это занимает от 1 до 10 минут.\n"
-            "Как только оплата подтвердится, вы сразу получите уведомление и доступ!"
-        )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ В главное меню", callback_data="main_menu"))
-        update_menu(call, text, markup)
-
-        # Отправка заявки администратору
-        admin_markup = types.InlineKeyboardMarkup(row_width=2)
-        btn_confirm = types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_approve_{user_id}_{days}")
-        btn_reject = types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_reject_{user_id}")
-        admin_markup.add(btn_confirm, btn_reject)
-
-        try:
-            bot.send_message(
-                ADMIN_ID,
-                f"💰 <b>Новая заявка на оплату!</b>\n\n"
-                f"👤 <b>Пользователь:</b> @{username} (ID: <code>{user_id}</code>)\n"
-                f"🗓 <b>Срок:</b> {days} дней\n"
-                f"💵 <b>Сумма:</b> {price}",
-                parse_mode='HTML',
-                reply_markup=admin_markup
-            )
-        except Exception as e:
-            print(f"Не удалось отправить сообщение админу: {e}")
-
-    # --- АДМИН-КНОПКИ ---
+    # --- АДМИН-КНОПКИ (ПОД ЧЕКОМ) ---
     elif call.data.startswith("adm_approve_"):
         parts = call.data.split("_")
         target_id = int(parts[2])
         days = int(parts[3])
 
-        expire_date = add_user_sub(target_id, username, days)
+        expire_date = add_user_sub(target_id, call.from_user.username, days)
         expire_str = expire_date.strftime("%d.%m.%Y %H:%M")
 
-        # Ответ админу
-        bot.answer_callback_query(call.id, "Подписка успешно активирована!")
-        bot.edit_message_text(
+        bot.answer_callback_query(call.id, "Подписка успешно выдана!")
+        
+        # Обновляем сообщение админа (чтобы кнопки пропали)
+        bot.edit_message_caption(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=f"✅ <b>Оплата подтверждена!</b>\nПользователю {target_id} выдана подписка до {expire_str}.",
+            caption=f"✅ <b>Оплата подтверждена!</b>\nПользователю <code>{target_id}</code> выдана подписка до {expire_str}.",
             parse_mode='HTML'
         )
 
-        # Отправка ключа пользователю
+        # Отправляем ключ клиенту
         safe_key = html.escape(STATIC_SERVER_KEY)
         safe_sub = html.escape(SUB_URL)
         user_text = (
@@ -255,7 +233,8 @@ def callback_inline(call):
             f"🔗 <b>Ссылка для вставки в Happ (нажмите для копирования):</b>\n"
             f"<code>{safe_sub}</code>\n\n"
             f"🔑 <b>Прямой VLESS-ключ:</b>\n"
-            f"<code>{safe_key}</code>"
+            f"<code>{safe_key}</code>\n\n"
+            f"<i>Для проверки статуса нажмите «Мои подписки» в главном меню.</i>"
         )
         try:
             bot.send_message(target_id, user_text, parse_mode='HTML')
@@ -265,17 +244,19 @@ def callback_inline(call):
     elif call.data.startswith("adm_reject_"):
         target_id = int(call.data.split("_")[2])
         bot.answer_callback_query(call.id, "Заявка отклонена.")
-        bot.edit_message_text(
+        
+        bot.edit_message_caption(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=f"❌ Заявка пользователя {target_id} была отклонена."
+            caption=f"❌ Заявка пользователя <code>{target_id}</code> отклонена.",
+            parse_mode='HTML'
         )
         try:
-            bot.send_message(target_id, "❌ <b>Оплата не найдена или была отклонена.</b>\nЕсли возникла ошибка, напишите в поддержку.", parse_mode='HTML')
+            bot.send_message(target_id, "❌ <b>Ваш чек был отклонён администратором.</b>\nЕсли произошла ошибка, напишите в поддержку.", parse_mode='HTML')
         except Exception:
             pass
 
-    # --- КНОПКИ ПОЛЬЗОВАТЕЛЯ ---
+    # --- КНОПКИ МЕНЮ ---
     elif call.data == "my_subs":
         sub = get_user_sub(user_id)
         if sub:
@@ -291,11 +272,8 @@ def callback_inline(call):
                 f"🔑 <b>VLESS-ключ:</b>\n<code>{safe_key}</code>"
             )
         else:
-            text = (
-                "📋 <b>Ваши подписки:</b>\n\n"
-                "🔴 <b>Статус:</b> Нет активной подписки\n\n"
-                "Вы можете приобрести доступ, нажав кнопку «Купить VPN»."
-            )
+            text = "📋 <b>Ваши подписки:</b>\n\n🔴 <b>Статус:</b> Нет активной подписки\n\nВы можете приобрести доступ, нажав кнопку «Купить VPN»."
+        
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
         update_menu(call, text, markup)
@@ -331,7 +309,7 @@ def callback_inline(call):
             "❓ <b>Возникли проблемы?</b>\n\n"
             "1. Откройте Happ и нажмите иконку обновить 🔄.\n"
             "2. Переключите режим с <b>Proxy</b> на <b>TUN</b> внизу экрана.\n"
-            "3. По любым вопросам пишите админу."
+            "3. По любым вопросам обращайтесь к администратору."
         )
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
@@ -339,6 +317,53 @@ def callback_inline(call):
 
     bot.answer_callback_query(call.id)
 
+# --- ОБРАБОТЧИК ФОТОГРАФИЙ (ЧЕКОВ) ---
+@bot.message_handler(content_types=['text', 'photo', 'document'])
+def handle_receipts_and_text(message):
+    user_id = message.from_user.id
+    
+    # Проверяем, ждет ли бот от этого юзера скриншот
+    if user_id in pending_payments:
+        if message.content_type in ['photo', 'document']:
+            payment_info = pending_payments[user_id]
+            days = payment_info['days']
+            price = payment_info['price']
+            username = message.from_user.username or message.from_user.first_name
+
+            # Достаем ID картинки (или файла, если отправили как документ)
+            file_id = message.photo[-1].file_id if message.content_type == 'photo' else message.document.file_id
+
+            # Клавиатура для тебя (админа)
+            admin_markup = types.InlineKeyboardMarkup(row_width=2)
+            btn_confirm = types.InlineKeyboardButton("✅ Подтвердить", callback_data=f"adm_approve_{user_id}_{days}")
+            btn_reject = types.InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_reject_{user_id}")
+            admin_markup.add(btn_confirm, btn_reject)
+
+            caption = (
+                f"💰 <b>Новый чек на проверку!</b>\n\n"
+                f"👤 <b>От:</b> @{username} (ID: <code>{user_id}</code>)\n"
+                f"🗓 <b>Срок подписки:</b> {days} дней\n"
+                f"💵 <b>Сумма к проверке:</b> {price}"
+            )
+            
+            # Отправляем скриншот админу
+            try:
+                bot.send_photo(ADMIN_ID, file_id, caption=caption, parse_mode='HTML', reply_markup=admin_markup)
+                bot.send_message(user_id, "✅ <b>Чек отправлен на проверку администратору!</b>\nОжидайте подтверждения, бот пришлет доступ автоматически.", parse_mode='HTML')
+            except Exception as e:
+                bot.send_message(user_id, "⚠️ Ошибка отправки чека администратору. Попробуйте еще раз позже.", parse_mode='HTML')
+                print(f"Ошибка: {e}")
+
+            # Удаляем юзера из режима ожидания оплаты
+            del pending_payments[user_id]
+            
+        else:
+            bot.send_message(user_id, "⚠️ <b>Пожалуйста, отправьте скриншот чека в виде картинки (фотографии)!</b>\n\nЕсли хотите отменить, нажмите /start", parse_mode='HTML')
+    else:
+        # Если юзер просто пишет текст и не в процессе оплаты
+        if message.text and not message.text.startswith('/'):
+            bot.send_message(user_id, "Воспользуйтесь меню: /start")
+
 if __name__ == '__main__':
-    print("Бот с базой данных и оплатой запущен!")
+    print("Бот с базой данных и проверкой чеков запущен!")
     bot.polling(none_stop=True)
