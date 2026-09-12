@@ -7,7 +7,7 @@ import html
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests.packages.urllib3.util.connection as urllib_conn
 
-# Фикс сети для Amvera/Termux
+# Фикс сети для хостинга
 def allowed_gai_family():
     return socket.AF_INET
 
@@ -16,27 +16,28 @@ urllib_conn.allowed_gai_family = allowed_gai_family
 import telebot
 from telebot import types
 
-# --- НАСТРОЙКИ БОТА ---
+# --- ВСЕ ТВОИ НАСТРОЙКИ ---
 TOKEN = '8668630984:AAEQgKGPaJbrX-cgkLH62_MlLPdjaseDwtA'
-ADMIN_ID = 7088071281  # Твой Telegram ID
+ADMIN_ID = 7088071281
 
-# Путь к БД с защитой от удаления при пересборке хостинга
+# Путь к БД с защитой от удаления при пересборке
 DB_DIR = '/data' if os.path.exists('/data') else '.'
 DB_PATH = os.path.join(DB_DIR, 'users.db')
 
-# Реквизиты для оплаты
+# Реквизиты ОЗОН Банка
 PAYMENT_REQUISITES = (
     "💳 <b>Реквизиты для оплаты:</b>\n\n"
     "• <b>СБП (Номер телефона):</b> <code>+79956913031</code>\n"
     "• <b>Банк:</b> <b>\"ОЗОН\" Банк</b>\n"
-    "• <b>Получатель:</b> (проверьте перед переводом)\n\n"
+    "• <b>Получатель:</b> Глеб В.\n\n"
 )
 
-# Новая VLESS-ссылка (TCP + REALITY + Vision)
+# Твой точный VLESS-ключ
 STATIC_SERVER_KEY = (
     "vless://a94610b9-b27a-49c8-9085-b4cc37c9abb1@kkooa.vz-or.com:443"
     "?security=reality&encryption=none&pbk=RJETAkoZ6lowmwc5f0HtPy00c3dfojqQuypriLExXRE"
-    "&fp=qq&type=tcp&flow=xtls-rprx-vision&sni=ads.x5.ru&sid=abbcd128#Desentom%20VPN"
+    "&fp=qq&type=grpc&serviceName=ads.x5.ru&sni=ads.x5.ru&sid=abbcd128"
+    "#🇵🇱%20Мобильная%20связь%201%20NEW"
 )
 SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/#Desentom%20VPN'
 
@@ -154,7 +155,7 @@ def update_menu(call, text, reply_markup):
     except Exception as e:
         print(f"Ошибка обновления меню: {e}")
 
-# --- АДМИН КОМАНДЫ ДЛЯ СИНХРОНИЗАЦИИ И БЭКАПА ---
+# --- КОМАНДА ДЛЯ АДМИНА (/backup) ---
 @bot.message_handler(commands=['backup'])
 def send_backup(message):
     if message.from_user.id == ADMIN_ID:
@@ -219,7 +220,7 @@ def callback_inline(call):
         
         update_menu(call, text, markup)
 
-    # --- АДМИН-КНОПКИ ---
+    # --- АДМИН-КНОПКИ ПОД ЧЕКОМ ---
     elif call.data.startswith("adm_approve_"):
         parts = call.data.split("_")
         target_id = int(parts[2])
@@ -253,7 +254,7 @@ def callback_inline(call):
         except Exception as e:
             print(f"Ошибка отправки пользователю: {e}")
 
-        # Автоматический авто-бэкап базы админу в ЛС при каждой выдаче подписки
+        # Авто-бэкап базы данных админу
         try:
             with open(DB_PATH, 'rb') as db_file:
                 bot.send_document(ADMIN_ID, db_file, caption=f"💾 <b>Авто-бэкап базы данных</b>\nВыдана подписка ID: <code>{target_id}</code> до {expire_str}", parse_mode='HTML')
@@ -336,12 +337,12 @@ def callback_inline(call):
 
     bot.answer_callback_query(call.id)
 
-# --- ОБРАБОТЧИК ФОТОГРАФИЙ И ФАЙЛОВ ---
+# --- ОБРАБОТЧИК ЧЕКОВ И ВОССТАНОВЛЕНИЯ БАЗЫ ---
 @bot.message_handler(content_types=['text', 'photo', 'document'])
 def handle_files_and_text(message):
     user_id = message.from_user.id
     
-    # Восстановление базы админом (если скинуть файл users.db)
+    # Восстановление базы админом (если отправить файл users.db)
     if user_id == ADMIN_ID and message.content_type == 'document' and message.document.file_name == 'users.db':
         try:
             file_info = bot.get_file(message.document.file_id)
@@ -393,5 +394,5 @@ def handle_files_and_text(message):
             bot.send_message(user_id, "Воспользуйтесь меню: /start")
 
 if __name__ == '__main__':
-    print("Бот запущен с системой синхронизации подписок!")
+    print("Бот Desentom VPN успешно запущен со всеми вашими данными!")
     bot.polling(none_stop=True)
