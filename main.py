@@ -32,14 +32,9 @@ PAYMENT_REQUISITES = (
     "• <b>Получатель:</b> Глеб В.\n\n"
 )
 
-# Твой точный VLESS-ключ
-STATIC_SERVER_KEY = (
-    "vless://a94610b9-b27a-49c8-9085-b4cc37c9abb1@kkooa.vz-or.com:443"
-    "?security=reality&encryption=none&pbk=RJETAkoZ6lowmwc5f0HtPy00c3dfojqQuypriLExXRE"
-    "&fp=qq&type=grpc&serviceName=ads.x5.ru&sni=ads.x5.ru&sid=abbcd128"
-    "#🇵🇱%20Мобильная%20связь%201%20NEW"
-)
-SUB_URL = 'https://desentom-vpn.axelitvari.workers.dev/#Desentom%20VPN'
+# Обновленная ссылка-подписка и ключ
+STATIC_SERVER_KEY = "https://109.120.134.176:2096/8vadr0ftqeifntvx/g6myt7dwi6jjf2xe"
+SUB_URL = "https://109.120.134.176:2096/8vadr0ftqeifntvx/g6myt7dwi6jjf2xe"
 
 bot = telebot.TeleBot(TOKEN)
 pending_payments = {}
@@ -125,13 +120,11 @@ def get_main_menu():
 
 def get_periods_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
+    # Оставлен только вариант на 1 месяц
     btn_1m = types.InlineKeyboardButton("🗓 1 месяц — 100 ₽", callback_data="select_1m_30")
-    btn_3m = types.InlineKeyboardButton("🗓 3 месяца — 270 ₽", callback_data="select_3m_90")
-    btn_6m = types.InlineKeyboardButton("🗓 6 месяцев — 500 ₽", callback_data="select_6m_180")
-    btn_12m = types.InlineKeyboardButton("🗓 12 месяцев — 900 ₽", callback_data="select_12m_365")
     btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
     
-    markup.add(btn_1m, btn_3m, btn_6m, btn_12m, btn_back)
+    markup.add(btn_1m, btn_back)
     return markup
 
 def update_menu(call, text, reply_markup):
@@ -194,7 +187,7 @@ def callback_inline(call):
         update_menu(call, text, get_main_menu())
 
     elif call.data == "buy_vpn":
-        text = "💳 <b>Выберите срок подписки Desentom VPN:</b>"
+        text = "💳 <b>Оформление подписки (1 месяц — 100 ₽):</b>"
         update_menu(call, text, get_periods_menu())
 
     elif call.data.startswith("select_"):
@@ -202,13 +195,13 @@ def callback_inline(call):
         period_name = parts[1]
         days = int(parts[2])
         
-        prices = {"1m": "100 ₽", "3m": "270 ₽", "6m": "500 ₽", "12m": "900 ₽"}
+        prices = {"1m": "100 ₽"}
         price = prices.get(period_name, "100 ₽")
 
         pending_payments[user_id] = {'days': days, 'price': price}
 
         text = (
-            f"🛒 <b>Оформление подписки на {days} дней ({price})</b>\n\n"
+            f"🛒 <b>Оформление подписки на 1 месяц ({price})</b>\n\n"
             f"{PAYMENT_REQUISITES}"
             f"📸 <b>Пожалуйста, оплатите и отправьте скриншот чека прямо сюда (в этот чат).</b>\n\n"
             f"<i>Бот ждёт вашу фотографию...</i> ⏳"
@@ -245,7 +238,7 @@ def callback_inline(call):
             f"🟢 <b>Подписка активна до:</b> {expire_str}\n\n"
             f"🔗 <b>Ссылка для вставки в Happ (нажмите для копирования):</b>\n"
             f"<code>{safe_sub}</code>\n\n"
-            f"🔑 <b>Прямой VLESS-ключ:</b>\n"
+            f"🔑 <b>Ссылка-подписка / Ключ:</b>\n"
             f"<code>{safe_key}</code>\n\n"
             f"<i>Для проверки статуса нажмите «Мои подписки» в главном меню.</i>"
         )
@@ -289,7 +282,7 @@ def callback_inline(call):
                 f"⏳ <b>Действительна до:</b> {expire_str}\n"
                 f"🌐 <b>Сервис:</b> Desentom VPN\n\n"
                 f"🔗 <b>Ссылка для Happ:</b>\n<code>{safe_sub}</code>\n\n"
-                f"🔑 <b>VLESS-ключ:</b>\n<code>{safe_key}</code>"
+                f"🔑 <b>Ссылка-подписка:</b>\n<code>{safe_key}</code>"
             )
         else:
             text = "📋 <b>Ваши подписки:</b>\n\n🔴 <b>Статус:</b> Нет активной подписки\n\nВы можете приобрести доступ, нажав кнопку «Купить VPN»."
