@@ -31,7 +31,7 @@ PRIVACY_URL = "https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-08-12-99"
 DB_DIR = '/data' if os.path.exists('/data') else '.'
 DB_PATH = os.path.join(DB_DIR, 'users.db')
 
-# Обновственная ссылка-подписка и ключ
+# Обновленная ссылка-подписка и ключ
 STATIC_SERVER_KEY = "https://109.120.134.176:2096/8vadr0ftqeifntvx/s4jdvt0598h22ss6"
 SUB_URL = "https://109.120.134.176:2096/8vadr0ftqeifntvx/s4jdvt0598h22ss6"
 
@@ -294,7 +294,7 @@ def callback_inline(call):
             "4️⃣ Выберите <b>Desentom VPN</b> и нажмите «Включить»."
         )
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+        markup.add(types.InlineKeyboardButton("⬅️️ Назад", callback_data="main_menu"))
         update_menu(call, text, markup, photo_path="photo.jpg")
 
     elif call.data == "support":
@@ -306,7 +306,8 @@ def callback_inline(call):
         )
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        update_menu(call, text, markup, photo_path="photo.jpg")
+        # Указываем картинку для раздела подтримки/помощи
+        update_menu(call, text, markup, photo_path="support.jpg")
 
     # --- АДМИН-КНОПКИ ПОД ЧЕКОМ ---
     elif call.data.startswith("adm_approve_"):
