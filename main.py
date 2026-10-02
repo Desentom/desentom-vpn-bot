@@ -20,21 +20,16 @@ from telebot import types
 TOKEN = '8668630984:AAEQgKGPaJbrX-cgkLH62_MlLPdjaseDwtA'
 ADMIN_ID = 7088071281
 
+# Вставь сюда внешнюю ссылку на оплату (СБП, ЮKassa, CryptoBot и т.д.)
+PAYMENT_URL = "https://your-payment-link.com"  
+
 # Путь к БД с защитой от удаления при пересборке
 DB_DIR = '/data' if os.path.exists('/data') else '.'
 DB_PATH = os.path.join(DB_DIR, 'users.db')
 
-# Реквизиты ОЗОН Банка
-PAYMENT_REQUISITES = (
-    "💳 <b>Реквизиты для оплаты:</b>\n\n"
-    "• <b>СБП (Номер телефона):</b> <code>+79956913031</code>\n"
-    "• <b>Банк:</b> <b>\"ОЗОН\" Банк</b>\n"
-    "• <b>Получатель:</b> Глеб В.\n\n"
-)
-
 # Обновленная ссылка-подписка и ключ
-STATIC_SERVER_KEY = "https://109.120.134.176:2096/8vadr0ftqeifntvx/g6myt7dwi6jjf2xe"
-SUB_URL = "https://109.120.134.176:2096/8vadr0ftqeifntvx/g6myt7dwi6jjf2xe"
+STATIC_SERVER_KEY = "https://109.120.134.176:2096/8vadr0ftqeifntvx/s4jdvt0598h22ss6"
+SUB_URL = "https://109.120.134.176:2096/8vadr0ftqeifntvx/s4jdvt0598h22ss6"
 
 bot = telebot.TeleBot(TOKEN)
 pending_payments = {}
@@ -120,7 +115,6 @@ def get_main_menu():
 
 def get_periods_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    # Оставлен только вариант на 1 месяц
     btn_1m = types.InlineKeyboardButton("🗓 1 месяц — 100 ₽", callback_data="select_1m_30")
     btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
     
@@ -157,7 +151,7 @@ def send_backup(message):
                 with open(DB_PATH, 'rb') as db_file:
                     bot.send_document(ADMIN_ID, db_file, caption="💾 <b>Резервная копия подписок (users.db)</b>", parse_mode='HTML')
             else:
-                bot.send_message(ADMIN_ID, "⚠️ Файл базы данных не найден.")
+                bot.send_message(ADMIN_ID, "⚠️️ Файл базы данных не найден.")
         except Exception as e:
             bot.send_message(ADMIN_ID, f"❌ Ошибка выгрузки БД: {e}")
 
@@ -202,14 +196,16 @@ def callback_inline(call):
 
         text = (
             f"🛒 <b>Оформление подписки на 1 месяц ({price})</b>\n\n"
-            f"{PAYMENT_REQUISITES}"
-            f"📸 <b>Пожалуйста, оплатите и отправьте скриншот чека прямо сюда (в этот чат).</b>\n\n"
+            f"1️⃣ Нажмите синюю кнопку ниже, чтобы перейти к оплате.\n"
+            f"2️⃣ После оплаты отправьте скриншот чека прямо сюда (в этот чат).\n\n"
             f"<i>Бот ждёт вашу фотографию...</i> ⏳"
         )
         
+        # Инлайн-кнопки со ссылкой на оплату и возвратом
         markup = types.InlineKeyboardMarkup(row_width=1)
+        btn_pay = types.InlineKeyboardButton(f"💳 Перейти к оплате ({price})", url=PAYMENT_URL)
         btn_cancel = types.InlineKeyboardButton("⬅️ Отменить покупку", callback_data="main_menu")
-        markup.add(btn_cancel)
+        markup.add(btn_pay, btn_cancel)
         
         update_menu(call, text, markup)
 
@@ -247,7 +243,7 @@ def callback_inline(call):
         except Exception as e:
             print(f"Ошибка отправки пользователю: {e}")
 
-        # Авто-бэкап базы данных админу
+        # Авто-бэкап базы данных админом
         try:
             with open(DB_PATH, 'rb') as db_file:
                 bot.send_document(ADMIN_ID, db_file, caption=f"💾 <b>Авто-бэкап базы данных</b>\nВыдана подписка ID: <code>{target_id}</code> до {expire_str}", parse_mode='HTML')
@@ -325,7 +321,7 @@ def callback_inline(call):
             "3. По любым вопросам обращайтесь к администратору."
         )
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+        markup.add(types.InlineKeyboardButton("⬅️️ Назад", callback_data="main_menu"))
         update_menu(call, text, markup)
 
     bot.answer_callback_query(call.id)
