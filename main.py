@@ -23,6 +23,9 @@ ADMIN_ID = 7088071281
 # Вставь сюда свою ссылку на оплату через RollyPay
 PAYMENT_URL = "https://rollypay.io/"  
 
+# Контакт поддержки
+SUPPORT_URL = "https://t.me/face5O"
+
 # Ссылки на правовые документы
 OFFER_URL = "https://telegra.ph/PUBLICHNAYA-OFERTA-08-12-15"
 PRIVACY_URL = "https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-08-12-99"
@@ -294,19 +297,21 @@ def callback_inline(call):
             "4️⃣ Выберите <b>Desentom VPN</b> и нажмите «Включить»."
         )
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️️ Назад", callback_data="main_menu"))
+        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
         update_menu(call, text, markup, photo_path="photo.jpg")
 
     elif call.data == "support":
         text = (
             "❓ <b>Возникли проблемы?</b>\n\n"
             "1. Откройте Happ и нажмите иконку обновить 🔄.\n"
-            "2. Переключите режим с <b>Proxy</b> на <b>TUN</b> внизу экрана.\n"
-            "3. По любым вопросам обращайтесь к администратору."
+            "2. Переключите режим с <b>Proxy</b> на <b>TUN</b> внизу экрана.\n\n"
+            "💬 Если проблема не решилась, напишите в поддержку: @face5O"
         )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        # Указываем картинку для раздела подтримки/помощи
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        btn_contact = types.InlineKeyboardButton("💬 Написать в поддержку", url=SUPPORT_URL)
+        btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
+        
+        markup.add(btn_contact, btn_back)
         update_menu(call, text, markup, photo_path="support.jpg")
 
     # --- АДМИН-КНОПКИ ПОД ЧЕКОМ ---
