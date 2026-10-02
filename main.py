@@ -23,6 +23,10 @@ ADMIN_ID = 7088071281
 # Вставь сюда свою ссылку на оплату через RollyPay
 PAYMENT_URL = "https://rollypay.io/"  
 
+# Ссылки на правовые документы
+OFFER_URL = "https://telegra.ph/PUBLICHNAYA-OFERTA-08-12-15"
+PRIVACY_URL = "https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-08-12-99"
+
 # Путь к БД с защитой от удаления при пересборке
 DB_DIR = '/data' if os.path.exists('/data') else '.'
 DB_PATH = os.path.join(DB_DIR, 'users.db')
@@ -106,11 +110,13 @@ def get_main_menu():
     btn_profile = types.InlineKeyboardButton("👤 Мой профиль", callback_data="profile")
     btn_help = types.InlineKeyboardButton("📖 Инструкция", callback_data="instruction")
     btn_support = types.InlineKeyboardButton("❓ Не работает VPN?", callback_data="support")
+    btn_docs = types.InlineKeyboardButton("📄 Соглашения", callback_data="docs")
     
     markup.add(btn_buy)
     markup.add(btn_subs)
     markup.add(btn_profile, btn_help)
     markup.add(btn_support)
+    markup.add(btn_docs)
     return markup
 
 def get_periods_menu():
@@ -151,7 +157,7 @@ def send_backup(message):
                 with open(DB_PATH, 'rb') as db_file:
                     bot.send_document(ADMIN_ID, db_file, caption="💾 <b>Резервная копия подписок (users.db)</b>", parse_mode='HTML')
             else:
-                bot.send_message(ADMIN_ID, "⚠️️ Файл базы данных не найден.")
+                bot.send_message(ADMIN_ID, "⚠️ Файл базы данных не найден.")
         except Exception as e:
             bot.send_message(ADMIN_ID, f"❌ Ошибка выгрузки БД: {e}")
 
@@ -161,7 +167,8 @@ def send_welcome(message):
     text = (
         "🚀 <b>Добро пожаловать в главное меню Desentom VPN!</b>\n\n"
         "⚡️ Быстрый и защищенный доступ без ограничений.\n\n"
-        "🗂 <b>Выберите действие:</b>"
+        "🗂 <b>Выберите действие:</b>\n\n"
+        f"<i>Используя бота, вы принимаете <a href=\"{OFFER_URL}\">Публичную оферту</a> и <a href=\"{PRIVACY_URL}\">Политику конфиденциальности</a>.</i>"
     )
     try:
         with open('photo.jpg', 'rb') as photo:
@@ -177,7 +184,11 @@ def callback_inline(call):
         if user_id in pending_payments:
             del pending_payments[user_id]
             
-        text = "🚀 <b>Главное меню Desentom VPN</b>\n\n🗂 <b>Выберите действие:</b>"
+        text = (
+            "🚀 <b>Главное меню Desentom VPN</b>\n\n"
+            "🗂 <b>Выберите действие:</b>\n\n"
+            f"<i>Используя бота, вы принимаете <a href=\"{OFFER_URL}\">Оферту</a> и <a href=\"{PRIVACY_URL}\">Политику конфиденциальности</a>.</i>"
+        )
         update_menu(call, text, get_main_menu())
 
     elif call.data == "buy_vpn":
@@ -207,6 +218,19 @@ def callback_inline(call):
         btn_cancel = types.InlineKeyboardButton("⬅️ Отменить покупку", callback_data="main_menu")
         markup.add(btn_pay, btn_cancel)
         
+        update_menu(call, text, markup)
+
+    elif call.data == "docs":
+        text = (
+            "📄 <b>Правовые документы и соглашения:</b>\n\n"
+            "Перед использованием сервиса, пожалуйста, ознакомьтесь с нашими условиями:"
+        )
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        btn_offer = types.InlineKeyboardButton("📜 Публичная оферта", url=OFFER_URL)
+        btn_privacy = types.InlineKeyboardButton("🔒 Политика конфиденциальности", url=PRIVACY_URL)
+        btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
+        
+        markup.add(btn_offer, btn_privacy, btn_back)
         update_menu(call, text, markup)
 
     # --- АДМИН-КНОПКИ ПОД ЧЕКОМ ---
