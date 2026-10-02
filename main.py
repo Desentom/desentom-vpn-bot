@@ -31,7 +31,7 @@ PRIVACY_URL = "https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-08-12-99"
 DB_DIR = '/data' if os.path.exists('/data') else '.'
 DB_PATH = os.path.join(DB_DIR, 'users.db')
 
-# Обновленная ссылка-подписка и ключ
+# Обновственная ссылка-подписка и ключ
 STATIC_SERVER_KEY = "https://109.120.134.176:2096/8vadr0ftqeifntvx/s4jdvt0598h22ss6"
 SUB_URL = "https://109.120.134.176:2096/8vadr0ftqeifntvx/s4jdvt0598h22ss6"
 
@@ -120,11 +120,18 @@ def get_main_menu():
     return markup
 
 def get_periods_menu():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_1m = types.InlineKeyboardButton("🗓 1 месяц — 100 ₽", callback_data="select_1m_30")
-    btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = []
     
-    markup.add(btn_1m, btn_back)
+    # Генерация кнопок от 1 до 12 месяцев по 39 ₽/мес
+    for m in range(1, 13):
+        price = m * 39
+        days = m * 30
+        buttons.append(types.InlineKeyboardButton(f"🗓 {m} мес. — {price} ₽", callback_data=f"select_{m}m_{days}"))
+    
+    markup.add(*buttons)
+    btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
+    markup.add(btn_back)
     return markup
 
 # --- ФУНКЦИЯ ДИНАМИЧЕСКОЙ СМЕНЫ ФОТО И ТЕКСТА ---
@@ -139,7 +146,6 @@ def update_menu(call, text, reply_markup, photo_path="photo.jpg"):
                     reply_markup=reply_markup
                 )
         else:
-            # Фолбэк на случай, если файла нет — обновляем текст/подпись
             if call.message.caption:
                 bot.edit_message_caption(
                     chat_id=call.message.chat.id,
@@ -203,21 +209,21 @@ def callback_inline(call):
         update_menu(call, text, get_main_menu(), photo_path="photo.jpg")
 
     elif call.data == "buy_vpn":
-        text = "💳 <b>Оформление подписки (1 месяц — 100 ₽):</b>"
+        text = "💳 <b>Выберите период подписки (39 ₽ / мес):</b>"
         update_menu(call, text, get_periods_menu(), photo_path="photo.jpg")
 
     elif call.data.startswith("select_"):
         parts = call.data.split("_")
-        period_name = parts[1]
+        months = int(parts[1].replace("m", ""))
         days = int(parts[2])
         
-        prices = {"1m": "100 ₽"}
-        price = prices.get(period_name, "100 ₽")
+        price_val = months * 39
+        price = f"{price_val} ₽"
 
         pending_payments[user_id] = {'days': days, 'price': price}
 
         text = (
-            f"💳 <b>Ожидание оплаты подписки ({price})</b>\n\n"
+            f"💳 <b>Ожидание оплаты подписки ({months} мес. — {price})</b>\n\n"
             f"1️⃣ Нажмите кнопку <b>«💳 Перейти к оплате ({price})»</b> ниже, чтобы перейти на сайт RollyPay.\n"
             f"2️⃣ Оплатите заказ удобным способом.\n"
             f"3️⃣ После успешной оплаты отправьте скриншот чека прямо в этот чат.\n\n"
@@ -242,7 +248,6 @@ def callback_inline(call):
         btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
         
         markup.add(btn_offer, btn_privacy, btn_back)
-        # Указываем картинку для соглашений
         update_menu(call, text, markup, photo_path="soglasheniya.jpg")
 
     elif call.data == "my_subs":
@@ -264,7 +269,6 @@ def callback_inline(call):
         
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        # Указываем картинку для подписок
         update_menu(call, text, markup, photo_path="subs.jpg")
 
     elif call.data == "profile":
@@ -338,7 +342,7 @@ def callback_inline(call):
         except Exception as e:
             print(f"Ошибка отправки пользователю: {e}")
 
-        # Авто-бэкап базы данных админом
+        # Авто-бэкап базы данных
         try:
             with open(DB_PATH, 'rb') as db_file:
                 bot.send_document(ADMIN_ID, db_file, caption=f"💾 <b>Авто-бэкап базы данных</b>\nВыдана подписка ID: <code>{target_id}</code> до {expire_str}", parse_mode='HTML')
@@ -367,7 +371,7 @@ def callback_inline(call):
 def handle_files_and_text(message):
     user_id = message.from_user.id
     
-    # Восстановление базы админом (если отправить файл users.db)
+    # Восстановление базы админом
     if user_id == ADMIN_ID and message.content_type == 'document' and message.document.file_name == 'users.db':
         try:
             file_info = bot.get_file(message.document.file_id)
@@ -419,5 +423,5 @@ def handle_files_and_text(message):
             bot.send_message(user_id, "Воспользуйтесь меню: /start")
 
 if __name__ == '__main__':
-    print("Бот Desentom VPN успешно запущен со всеми вашими данными!")
+    print("Бот Desentom VPN успешно запущен!")
     bot.polling(none_stop=True)
