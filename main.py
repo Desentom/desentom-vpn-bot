@@ -127,24 +127,35 @@ def get_periods_menu():
     markup.add(btn_1m, btn_back)
     return markup
 
-def update_menu(call, text, reply_markup):
+# --- ФУНКЦИЯ ДИНАМИЧЕСКОЙ СМЕНЫ ФОТО И ТЕКСТА ---
+def update_menu(call, text, reply_markup, photo_path="photo.jpg"):
     try:
-        if call.message.caption:
-            bot.edit_message_caption(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                caption=text,
-                parse_mode='HTML',
-                reply_markup=reply_markup
-            )
+        if os.path.exists(photo_path):
+            with open(photo_path, 'rb') as photo:
+                bot.edit_message_media(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    media=types.InputMediaPhoto(photo, caption=text, parse_mode='HTML'),
+                    reply_markup=reply_markup
+                )
         else:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=text,
-                parse_mode='HTML',
-                reply_markup=reply_markup
-            )
+            # Фолбэк на случай, если файла нет — обновляем текст/подпись
+            if call.message.caption:
+                bot.edit_message_caption(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    caption=text,
+                    parse_mode='HTML',
+                    reply_markup=reply_markup
+                )
+            else:
+                bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=text,
+                    parse_mode='HTML',
+                    reply_markup=reply_markup
+                )
     except Exception as e:
         print(f"Ошибка обновления меню: {e}")
 
@@ -189,11 +200,11 @@ def callback_inline(call):
             "🗂 <b>Выберите действие:</b>\n\n"
             f"<i>Используя бота, вы принимаете <a href=\"{OFFER_URL}\">Оферту</a> и <a href=\"{PRIVACY_URL}\">Политику конфиденциальности</a>.</i>"
         )
-        update_menu(call, text, get_main_menu())
+        update_menu(call, text, get_main_menu(), photo_path="photo.jpg")
 
     elif call.data == "buy_vpn":
         text = "💳 <b>Оформление подписки (1 месяц — 100 ₽):</b>"
-        update_menu(call, text, get_periods_menu())
+        update_menu(call, text, get_periods_menu(), photo_path="photo.jpg")
 
     elif call.data.startswith("select_"):
         parts = call.data.split("_")
@@ -218,7 +229,7 @@ def callback_inline(call):
         btn_cancel = types.InlineKeyboardButton("⬅️ Отменить покупку", callback_data="main_menu")
         markup.add(btn_pay, btn_cancel)
         
-        update_menu(call, text, markup)
+        update_menu(call, text, markup, photo_path="photo.jpg")
 
     elif call.data == "docs":
         text = (
@@ -231,7 +242,67 @@ def callback_inline(call):
         btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="main_menu")
         
         markup.add(btn_offer, btn_privacy, btn_back)
-        update_menu(call, text, markup)
+        # Указываем картинку для соглашений
+        update_menu(call, text, markup, photo_path="soglasheniya.jpg")
+
+    elif call.data == "my_subs":
+        sub = get_user_sub(user_id)
+        if sub:
+            expire_str = sub.strftime("%d.%m.%Y %H:%M")
+            safe_sub = html.escape(SUB_URL)
+            safe_key = html.escape(STATIC_SERVER_KEY)
+            text = (
+                f"📋 <b>Ваши подписки:</b>\n\n"
+                f"🟢 <b>Статус:</b> Активна\n"
+                f"⏳ <b>Действительна до:</b> {expire_str}\n"
+                f"🌐 <b>Сервис:</b> Desentom VPN\n\n"
+                f"🔗 <b>Ссылка для Happ:</b>\n<code>{safe_sub}</code>\n\n"
+                f"🔑 <b>Ссылка-подписка:</b>\n<code>{safe_key}</code>"
+            )
+        else:
+            text = "📋 <b>Ваши подписки:</b>\n\n🔴 <b>Статус:</b> Нет активной подписки\n\nВы можете приобрести доступ, нажав кнопку «Купить VPN»."
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+        # Указываем картинку для подписок
+        update_menu(call, text, markup, photo_path="subs.jpg")
+
+    elif call.data == "profile":
+        sub = get_user_sub(user_id)
+        status_text = f"🟢 Активна до {sub.strftime('%d.%m.%Y')}" if sub else "🔴 Не активна"
+        
+        text = (
+            f"👤 <b>Ваш профиль:</b>\n\n"
+            f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>\n"
+            f"👤 <b>Имя:</b> {html.escape(call.from_user.first_name)}\n"
+            f"🌐 <b>Статус VPN:</b> {status_text}"
+        )
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+        update_menu(call, text, markup, photo_path="photo.jpg")
+
+    elif call.data == "instruction":
+        text = (
+            "📖 <b>Инструкция по подключению:</b>\n\n"
+            "1️⃣ Скачайте приложение <b>Happ</b>.\n"
+            "2️⃣ Нажмите на ссылку подписки в боте, чтобы скопировать ее.\n"
+            "3️⃣ Откройте Happ и нажмите кнопку <b>«Из буфера»</b>.\n"
+            "4️⃣ Выберите <b>Desentom VPN</b> и нажмите «Включить»."
+        )
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+        update_menu(call, text, markup, photo_path="photo.jpg")
+
+    elif call.data == "support":
+        text = (
+            "❓ <b>Возникли проблемы?</b>\n\n"
+            "1. Откройте Happ и нажмите иконку обновить 🔄.\n"
+            "2. Переключите режим с <b>Proxy</b> на <b>TUN</b> внизу экрана.\n"
+            "3. По любым вопросам обращайтесь к администратору."
+        )
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
+        update_menu(call, text, markup, photo_path="photo.jpg")
 
     # --- АДМИН-КНОПКИ ПОД ЧЕКОМ ---
     elif call.data.startswith("adm_approve_"):
@@ -288,65 +359,6 @@ def callback_inline(call):
             bot.send_message(target_id, "❌ <b>Ваш чек был отклонён администратором.</b>\nЕсли произошла ошибка, напишите в поддержку.", parse_mode='HTML')
         except Exception:
             pass
-
-    # --- КНОПКИ МЕНЮ ---
-    elif call.data == "my_subs":
-        sub = get_user_sub(user_id)
-        if sub:
-            expire_str = sub.strftime("%d.%m.%Y %H:%M")
-            safe_sub = html.escape(SUB_URL)
-            safe_key = html.escape(STATIC_SERVER_KEY)
-            text = (
-                f"📋 <b>Ваши подписки:</b>\n\n"
-                f"🟢 <b>Статус:</b> Активна\n"
-                f"⏳ <b>Действительна до:</b> {expire_str}\n"
-                f"🌐 <b>Сервис:</b> Desentom VPN\n\n"
-                f"🔗 <b>Ссылка для Happ:</b>\n<code>{safe_sub}</code>\n\n"
-                f"🔑 <b>Ссылка-подписка:</b>\n<code>{safe_key}</code>"
-            )
-        else:
-            text = "📋 <b>Ваши подписки:</b>\n\n🔴 <b>Статус:</b> Нет активной подписки\n\nВы можете приобрести доступ, нажав кнопку «Купить VPN»."
-        
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        update_menu(call, text, markup)
-
-    elif call.data == "profile":
-        sub = get_user_sub(user_id)
-        status_text = f"🟢 Активна до {sub.strftime('%d.%m.%Y')}" if sub else "🔴 Не активна"
-        
-        text = (
-            f"👤 <b>Ваш профиль:</b>\n\n"
-            f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>\n"
-            f"👤 <b>Имя:</b> {html.escape(call.from_user.first_name)}\n"
-            f"🌐 <b>Статус VPN:</b> {status_text}"
-        )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        update_menu(call, text, markup)
-
-    elif call.data == "instruction":
-        text = (
-            "📖 <b>Инструкция по подключению:</b>\n\n"
-            "1️⃣ Скачайте приложение <b>Happ</b>.\n"
-            "2️⃣ Нажмите на ссылку подписки в боте, чтобы скопировать ее.\n"
-            "3️⃣ Откройте Happ и нажмите кнопку <b>«Из буфера»</b>.\n"
-            "4️⃣ Выберите <b>Desentom VPN</b> и нажмите «Включить»."
-        )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        update_menu(call, text, markup)
-
-    elif call.data == "support":
-        text = (
-            "❓ <b>Возникли проблемы?</b>\n\n"
-            "1. Откройте Happ и нажмите иконку обновить 🔄.\n"
-            "2. Переключите режим с <b>Proxy</b> на <b>TUN</b> внизу экрана.\n"
-            "3. По любым вопросам обращайтесь к администратору."
-        )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
-        update_menu(call, text, markup)
 
     bot.answer_callback_query(call.id)
 
