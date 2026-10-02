@@ -20,8 +20,8 @@ from telebot import types
 TOKEN = '8668630984:AAEQgKGPaJbrX-cgkLH62_MlLPdjaseDwtA'
 ADMIN_ID = 7088071281
 
-# Вставь сюда внешнюю ссылку на оплату (СБП, ЮKassa, CryptoBot и т.д.)
-PAYMENT_URL = "https://your-payment-link.com"  
+# Вставь сюда свою ссылку на оплату через RollyPay
+PAYMENT_URL = "https://rollypay.io/"  
 
 # Путь к БД с защитой от удаления при пересборке
 DB_DIR = '/data' if os.path.exists('/data') else '.'
@@ -195,13 +195,13 @@ def callback_inline(call):
         pending_payments[user_id] = {'days': days, 'price': price}
 
         text = (
-            f"🛒 <b>Оформление подписки на 1 месяц ({price})</b>\n\n"
-            f"1️⃣ Нажмите синюю кнопку ниже, чтобы перейти к оплате.\n"
-            f"2️⃣ После оплаты отправьте скриншот чека прямо сюда (в этот чат).\n\n"
-            f"<i>Бот ждёт вашу фотографию...</i> ⏳"
+            f"💳 <b>Ожидание оплаты подписки ({price})</b>\n\n"
+            f"1️⃣ Нажмите кнопку <b>«💳 Перейти к оплате ({price})»</b> ниже, чтобы перейти на сайт RollyPay.\n"
+            f"2️⃣ Оплатите заказ удобным способом.\n"
+            f"3️⃣ После успешной оплаты отправьте скриншот чека прямо в этот чат.\n\n"
+            f"⏳ <i>Бот ждёт ваш чек об оплате...</i>"
         )
         
-        # Инлайн-кнопки со ссылкой на оплату и возвратом
         markup = types.InlineKeyboardMarkup(row_width=1)
         btn_pay = types.InlineKeyboardButton(f"💳 Перейти к оплате ({price})", url=PAYMENT_URL)
         btn_cancel = types.InlineKeyboardButton("⬅️ Отменить покупку", callback_data="main_menu")
@@ -321,7 +321,7 @@ def callback_inline(call):
             "3. По любым вопросам обращайтесь к администратору."
         )
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬅️️ Назад", callback_data="main_menu"))
+        markup.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="main_menu"))
         update_menu(call, text, markup)
 
     bot.answer_callback_query(call.id)
